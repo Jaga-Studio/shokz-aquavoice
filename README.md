@@ -1,41 +1,49 @@
 # shokz-aquavoice
 
-Shokz **OpenComm2 UC**（Loop120 USBドングル）のマルチファンクションボタンを、
-[Aqua Voice](https://aqua-voice.com/)（AI音声入力）の起動・停止トリガーに変換する macOS デーモンです。
+[日本語の README はこちら](README.ja.md)
 
-ボタン1回押しでハンズフリーモードが起動、もう1回で停止。
-純正のPlay/Pause・ミュート動作はmacOSに届かない（または無視される）ので、
-ヘッドセットのボタンは**Aqua Voice専用操作**になります。
+![shokz-aquavoice: turn your Shokz headset button into an Aqua Voice trigger](docs/images/hero.en.png)
 
-## ボタン動作マップ
+A macOS daemon that turns the multifunction button of the Shokz **OpenComm2 UC** (Loop120 USB dongle)
+into a start/stop trigger for [Aqua Voice](https://aqua-voice.com/) (AI voice dictation).
 
-| ボタン | 状態 | Loop120が送るHIDイベント | デーモンの動作 |
+Press the button once to start hands-free mode, press it again to stop.
+The stock Play/Pause and mute actions never reach macOS (or are ignored),
+so the headset button becomes **an Aqua Voice-only control**.
+
+![One headset button, just for Aqua Voice](docs/images/before-after.en.png)
+
+## Button map
+
+| Button | State | HID event sent by the Loop120 | What the daemon does |
 |---|---|---|---|
-| マルチファンクション | スタンバイ | Consumer `0xCD`（Play/Pause）press | Fnキー×2 → **Aqua Voice起動** |
-| マルチファンクション | ハンズフリー中 | Telephony `0x2F` 単発（val=0） | Fnキー×1 → **Aqua Voice停止** |
-| ミュート | スタンバイ | （送信なし） | — |
-| ミュート | ハンズフリー中 | Telephony `0x2F` ペア（val=1→0） | **無視**（ミュート本来の動作は残る） |
+| Multifunction | Standby | Consumer `0xCD` (Play/Pause) press | Fn key ×2 → **start Aqua Voice** |
+| Multifunction | Hands-free | Telephony `0x2F`, single (val=0) | Fn key ×1 → **stop Aqua Voice** |
+| Mute | Standby | (nothing sent) | — |
+| Mute | Hands-free | Telephony `0x2F`, pair (val=1→0) | **Ignored** (the mute itself still works) |
 
-## 仕組み
+## How it works
 
-- `IOHIDManager` でLoop120（VendorID `0x3511` / ProductID `0x2F06`）のraw HIDイベントを監視
-- `0xCD` press で `CGEvent` のFnキーを2連打（Aqua Voiceのハンズフリー起動ショートカット）
-- `0x2F` は**送信パターンで区別**：単発＝マルチファンクション→Fn、val=1→0ペア＝ミュート→無視
-  （両方とも同じTelephony usageなので、イベント列の形で見分けています）
-- デーモンはイベントを「覗き見」するだけでmacOSへの配信は止めないため、
-  Play/Pauseは別途 `hidutil` で**Loop120限定**に無効キーへリマップして遮断
-  （デーモンはrawイベントを拾い続けるので動作は変わりません）
+![How shokz-aquavoice works](docs/images/architecture.en.png)
 
-Karabiner-Elementsでは Consumer Control は捕捉できるものの Telephony HID に非対応なため、
-起動はできても停止ができません。専用デーモンにしたのはそのためです。
+- `IOHIDManager` watches the raw HID events of the Loop120 (VendorID `0x3511` / ProductID `0x2F06`)
+- On a `0xCD` press, it taps the Fn key twice through `CGEvent` (Aqua Voice's hands-free start shortcut)
+- `0x2F` is **told apart by its send pattern**: a single event = multifunction → Fn; a val=1→0 pair = mute → ignored
+  (both use the same Telephony usage, so the shape of the event sequence is what separates them)
+- The daemon only "peeks" at events and does not stop macOS from delivering them,
+  so Play/Pause is blocked separately: `hidutil` remaps it to a no-op key **for the Loop120 only**
+  (the daemon keeps receiving the raw events, so its behavior does not change)
 
-## 必要なもの
+Karabiner-Elements can capture Consumer Control but does not support Telephony HID,
+so it can start Aqua Voice but cannot stop it. That is why this is a dedicated daemon.
 
-- macOS + Xcode Command Line Tools（`swiftc` が使えればOK）
-- Shokz OpenComm2 UC + Loop120 USBドングル
-- Aqua Voice（Fnダブルタップでハンズフリーが起動する設定）
+## Requirements
 
-## インストール
+- macOS + Xcode Command Line Tools (anything that provides `swiftc`)
+- Shokz OpenComm2 UC + Loop120 USB dongle
+- Aqua Voice (set so that a Fn double tap starts hands-free)
+
+## Install
 
 ```sh
 git clone https://github.com/Jaga-Studio/shokz-aquavoice.git
@@ -43,65 +51,65 @@ cd shokz-aquavoice
 ./install.sh
 ```
 
-`install.sh` がやること：
+What `install.sh` does:
 
-1. `main.swift` を `swiftc` でビルド
-2. `codesign` で署名（後述）
-3. `~/.local/bin/shokz-aquavoice` にインストール
-4. 2つのLaunchAgentを `~/Library/LaunchAgents/` に登録・ロード
-   - `com.shokz.aquavoice` — デーモン本体（ログイン起動＋KeepAlive）
-   - `com.shokz.playpause-block` — 起動時にhidutilリマップを再適用（再起動で消えるため）
-5. hidutilリマップを即時適用
+1. Builds `main.swift` with `swiftc`
+2. Signs it with `codesign` (see below)
+3. Installs it to `~/.local/bin/shokz-aquavoice`
+4. Registers and loads two LaunchAgents in `~/Library/LaunchAgents/`
+   - `com.shokz.aquavoice` — the daemon itself (starts at login + KeepAlive)
+   - `com.shokz.playpause-block` — reapplies the hidutil remap at login (a reboot clears it)
+5. Applies the hidutil remap right away
 
-### 署名について
+### About signing
 
-デフォルトはアドホック署名（`codesign -s -`）。
-**アドホック署名だとmacOSのTCC権限がビルド毎のcdhashに紐付く**ため、
-再ビルドのたびに権限を付け直す必要があります。
+The default is ad hoc signing (`codesign -s -`).
+**With ad hoc signing, macOS TCC permissions are bound to each build's cdhash**,
+so you have to grant the permissions again after every rebuild.
 
-Apple開発者証明書があれば、それで署名すると権限が証明書ベースになり再ビルドしても維持されます：
+If you have an Apple developer certificate, sign with it: the permissions become certificate-based and survive rebuilds:
 
 ```sh
 SIGN_IDENTITY="Apple Development: Your Name (TEAMID)" ./install.sh
 ```
 
-## 権限の付与（初回のみ）
+## Granting permissions (first time only)
 
-システム設定 → プライバシーとセキュリティ で `shokz-aquavoice` に以下を付与：
+In System Settings → Privacy & Security, give `shokz-aquavoice`:
 
-- **入力監視** — HIDイベントの受信に必要
-- **アクセシビリティ** — Fnキーイベントの送信に必要
-  （最近のmacOSではこのペイン名が **「デバイスの制御とデータのアクセス」** になっています）
+- **Input Monitoring** — needed to receive HID events
+- **Accessibility** — needed to send Fn key events
+  (on recent macOS this pane is named **「デバイスの制御とデータのアクセス」** in Japanese)
 
-権限付与後、ボタンを押して Aqua Voice が起動すれば成功です。
-ログは `/tmp/shokz-aquavoice.log` に出ます（`[START]` / `[STOP]` / `[SKIP]`）。
+After granting them, press the button: if Aqua Voice starts, you are done.
+Logs go to `/tmp/shokz-aquavoice.log` (`[START]` / `[STOP]` / `[SKIP]`).
 
-## 別モデル（Loop110等）で使う場合
+## Using another model (Loop110, etc.)
 
-ProductIDが違うので2箇所を書き換えてください：
+The ProductID differs, so change it in two places:
 
-1. `main.swift` の `productID`
-2. `launchagents/com.shokz.playpause-block.plist` の `ProductID`（10進数）
+1. `productID` in `main.swift`
+2. `ProductID` (decimal) in `launchagents/com.shokz.playpause-block.plist`
 
-確認コマンド：`ioreg -r -c IOHIDDevice -l | grep -A5 "Shokz"`
+To check it: `ioreg -r -c IOHIDDevice -l | grep -A5 "Shokz"`
 
-## アンインストール
+## Uninstall
 
 ```sh
 ./uninstall.sh
 ```
 
-デーモン・両LaunchAgent・hidutilリマップをすべて解除します。
+Removes the daemon, both LaunchAgents and the hidutil remap.
 
-## 注意点・制限
+## Notes and limitations
 
-- ごく稀に、マルチファンクションボタンの停止操作が「ペア送信」されてミュート判定になる可能性があります。その場合はもう一度押してください
-- この使い方では Mac との Bluetooth ペアリングを削除してドングルのみで接続する前提のため、Macへの通話着信をヘッドセットのボタンで応答することはできません
-- `hidutil` のリマップは再起動で消えるため、`com.shokz.playpause-block` がログイン時に再適用します。削除した場合は再起動後にPlay/Pauseが復活します
+- Very rarely, a multifunction-button stop may arrive as a "pair" and be treated as mute. If that happens, press the button again
+- This setup assumes you remove the headset's Bluetooth pairing with the Mac and connect through the dongle only, so you cannot answer incoming Mac calls with the headset button
+- The `hidutil` remap is cleared by a reboot, so `com.shokz.playpause-block` reapplies it at login. If you remove it, Play/Pause comes back after a reboot
 
-## 解説記事
+## Articles (Japanese)
 
-- ブログ（セットアップ手順・レビュー）: https://jaga-farm.com/shokz-opencomm2-uc-2025-upgrade/
+- Blog (setup steps and review): https://jaga-farm.com/shokz-opencomm2-uc-2025-upgrade/
 - note: https://note.com/jaga_farm/n/nee6c8143459c
 
 ## License

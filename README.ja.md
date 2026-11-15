@@ -42,6 +42,7 @@ Karabiner-Elementsでは Consumer Control は捕捉できるものの Telephony 
 - macOS + Xcode Command Line Tools（`swiftc` が使えればOK）
 - Shokz OpenComm2 UC + Loop120 USBドングル
 - Aqua Voice（Fnダブルタップでハンズフリーが起動する設定）
+  - [Typeless](https://www.typeless.com/) でも、そのまま使えます（Dictate のショートカットが Fn のままなら、設定やコードの変更なしでボタンで開始・停止できます）
 
 ## インストール
 
@@ -103,6 +104,7 @@ ProductIDが違うので2箇所を書き換えてください：
 
 ## 注意点・制限
 
+- Aqua Voice と Typeless を両方起動していると、どちらも Fn で動くため、ボタン1回で両方が反応します。使う方だけを起動してください
 - ごく稀に、マルチファンクションボタンの停止操作が「ペア送信」されてミュート判定になる可能性があります。その場合はもう一度押してください
 - この使い方では Mac との Bluetooth ペアリングを削除してドングルのみで接続する前提のため、Macへの通話着信をヘッドセットのボタンで応答することはできません
 - `hidutil` のリマップは再起動で消えるため、`com.shokz.playpause-block` がログイン時に再適用します。削除した場合は再起動後にPlay/Pauseが復活します

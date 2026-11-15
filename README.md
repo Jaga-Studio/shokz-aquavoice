@@ -42,6 +42,7 @@ so it can start Aqua Voice but cannot stop it. That is why this is a dedicated d
 - macOS + Xcode Command Line Tools (anything that provides `swiftc`)
 - Shokz OpenComm2 UC + Loop120 USB dongle
 - Aqua Voice (set so that a Fn double tap starts hands-free)
+  - [Typeless](https://www.typeless.com/) works too, as-is — as long as its Dictate shortcut stays on Fn, the button starts and stops dictation with no settings or code changes
 
 ## Install
 
@@ -103,6 +104,7 @@ Removes the daemon, both LaunchAgents and the hidutil remap.
 
 ## Notes and limitations
 
+- If Aqua Voice and Typeless are both running, both respond to Fn, so a single button press triggers both — run only the one you are using
 - Very rarely, a multifunction-button stop may arrive as a "pair" and be treated as mute. If that happens, press the button again
 - This setup assumes you remove the headset's Bluetooth pairing with the Mac and connect through the dongle only, so you cannot answer incoming Mac calls with the headset button
 - The `hidutil` remap is cleared by a reboot, so `com.shokz.playpause-block` reapplies it at login. If you remove it, Play/Pause comes back after a reboot
